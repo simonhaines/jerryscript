@@ -222,14 +222,17 @@ lit_magic_string_id_t ecma_get_typeof_lit_id (ecma_value_t value);
 ecma_string_t *ecma_new_symbol_from_descriptor_string (ecma_value_t string_desc);
 bool ecma_prop_name_is_symbol (ecma_string_t *string_p);
 #endif /* ENABLED (JERRY_ES2015_BUILTIN_SYMBOL) */
-#if ENABLED (JERRY_ES2015_BUILTIN_MAP)
+#if ENABLED (JERRY_ES2015_BUILTIN_MAP) || ENABLED (JERRY_ES2015_BUILTIN_SET)
 ecma_string_t *ecma_new_map_key_string (ecma_value_t value);
 bool ecma_prop_name_is_map_key (ecma_string_t *string_p);
-#endif /* ENABLED (JERRY_ES2015_BUILTIN_MAP) */
+#endif /* ENABLED (JERRY_ES2015_BUILTIN_MAP) || ENABLED (JERRY_ES2015_BUILTIN_SET) */
 ecma_string_t *ecma_new_ecma_string_from_utf8 (const lit_utf8_byte_t *string_p, lit_utf8_size_t string_size);
 ecma_string_t *ecma_new_ecma_string_from_utf8_converted_to_cesu8 (const lit_utf8_byte_t *string_p,
                                                                   lit_utf8_size_t string_size);
 ecma_string_t *ecma_new_ecma_string_from_code_unit (ecma_char_t code_unit);
+#if ENABLED (JERRY_ES2015_BUILTIN_ITERATOR)
+ecma_string_t *ecma_new_ecma_string_from_code_units (ecma_char_t first_code_unit, ecma_char_t second_code_unit);
+#endif /* ENABLED (JERRY_ES2015_BUILTIN_ITERATOR) */
 ecma_string_t *ecma_new_ecma_string_from_uint32 (uint32_t uint32_number);
 ecma_string_t *ecma_get_ecma_string_from_uint32 (uint32_t uint32_number);
 ecma_string_t *ecma_new_ecma_string_from_number (ecma_number_t num);
@@ -373,10 +376,10 @@ void ecma_set_property_enumerable_attr (ecma_property_t *property_p, bool is_enu
 bool ecma_is_property_configurable (ecma_property_t property);
 void ecma_set_property_configurable_attr (ecma_property_t *property_p, bool is_configurable);
 
-#ifndef CONFIG_ECMA_LCACHE_DISABLE
+#if ENABLED (JERRY_LCACHE)
 bool ecma_is_property_lcached (ecma_property_t *property_p);
 void ecma_set_property_lcached (ecma_property_t *property_p, bool is_lcached);
-#endif /* !CONFIG_ECMA_LCACHE_DISABLE */
+#endif /* ENABLED (JERRY_LCACHE) */
 
 ecma_property_descriptor_t ecma_make_empty_property_descriptor (void);
 void ecma_free_property_descriptor (ecma_property_descriptor_t *prop_desc_p);
@@ -390,6 +393,9 @@ ecma_value_t ecma_clear_error_reference (ecma_value_t value, bool set_abort_flag
 
 void ecma_bytecode_ref (ecma_compiled_code_t *bytecode_p);
 void ecma_bytecode_deref (ecma_compiled_code_t *bytecode_p);
+#if (JERRY_STACK_LIMIT != 0)
+uintptr_t ecma_get_current_stack_usage (void);
+#endif /* (JERRY_STACK_LIMIT != 0) */
 
 /* ecma-helpers-external-pointers.c */
 bool ecma_create_native_pointer_property (ecma_object_t *obj_p, void *native_p, void *info_p);

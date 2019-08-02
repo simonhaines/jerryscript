@@ -160,19 +160,31 @@ handler_construct (const jerry_value_t func_obj_val, /**< function object */
   jerry_release_value (res);
   jerry_release_value (field_name);
 
+  /* Set a native pointer. */
   jerry_set_object_native_pointer (this_val,
                                    (void *) 0x0000000000000000ull,
                                    &JERRY_NATIVE_HANDLE_INFO_FOR_CTYPE (bind1));
 
+  /* Check that the native pointer was set. */
   void *ptr = NULL;
   bool is_ok = jerry_get_object_native_pointer (this_val, &ptr, &JERRY_NATIVE_HANDLE_INFO_FOR_CTYPE (bind1));
   TEST_ASSERT (is_ok
                && (uintptr_t) ptr == (uintptr_t) 0x0000000000000000ull);
-  /* check if setting handle for second time is handled correctly */
+
+  /* Set a second native pointer. */
   jerry_set_object_native_pointer (this_val,
                                    (void *) 0x0012345678abcdefull,
                                    &JERRY_NATIVE_HANDLE_INFO_FOR_CTYPE (bind2));
 
+  /* Check that a second native pointer was set. */
+  is_ok = jerry_get_object_native_pointer (this_val, &ptr, &JERRY_NATIVE_HANDLE_INFO_FOR_CTYPE (bind2));
+  TEST_ASSERT (is_ok
+               && (uintptr_t) ptr == (uintptr_t) 0x0012345678abcdefull);
+
+  /* Check that the first native pointer is still set. */
+  is_ok = jerry_get_object_native_pointer (this_val, &ptr, &JERRY_NATIVE_HANDLE_INFO_FOR_CTYPE (bind1));
+  TEST_ASSERT (is_ok
+               && (uintptr_t) ptr == (uintptr_t) 0x0000000000000000ull);
   return jerry_create_boolean (true);
 } /* handler_construct */
 
@@ -715,7 +727,7 @@ main (void)
   jerry_release_value (global_obj_val);
 
   /* Test: run gc. */
-  jerry_gc (JERRY_GC_SEVERITY_LOW);
+  jerry_gc (JERRY_GC_PRESSURE_LOW);
 
   /* Test: spaces */
   const jerry_char_t eval_code_src2[] = "\x0a \x0b \x0c \xc2\xa0 \xe2\x80\xa8 \xe2\x80\xa9 \xef\xbb\xbf 4321";
@@ -815,7 +827,49 @@ main (void)
     jerry_release_value (err_str_val);
     jerry_release_value (parsed_code_val);
     TEST_ASSERT (!strcmp ((char *) err_str_buf,
-                          "SyntaxError: Primary expression expected. [line: 2, column: 10]"));
+                          "SyntaxError: Primary expression expected. [<anonymous>:2:10]"));
+
+    const jerry_char_t file_str[] = "filename.js";
+    parsed_code_val = jerry_parse (file_str,
+                                   sizeof (file_str) - 1,
+                                   parser_err_src,
+                                   sizeof (parser_err_src) - 1,
+                                   JERRY_PARSE_NO_OPTS);
+    TEST_ASSERT (jerry_value_is_error (parsed_code_val));
+    parsed_code_val = jerry_get_value_from_error (parsed_code_val, true);
+    err_str_val = jerry_value_to_string (parsed_code_val);
+    err_str_size = jerry_get_string_size (err_str_val);
+
+    sz = jerry_string_to_char_buffer (err_str_val, err_str_buf, err_str_size);
+    err_str_buf[sz] = 0;
+
+    jerry_release_value (err_str_val);
+    jerry_release_value (parsed_code_val);
+    TEST_ASSERT (!strcmp ((char *) err_str_buf,
+                          "SyntaxError: Primary expression expected. [filename.js:2:10]"));
+
+    const jerry_char_t eval_err_src[] = "eval(\"var b;\\nfor (,); \");";
+    parsed_code_val = jerry_parse (file_str,
+                                   sizeof (file_str),
+                                   eval_err_src,
+                                   sizeof (eval_err_src) - 1,
+                                   JERRY_PARSE_NO_OPTS);
+    TEST_ASSERT (!jerry_value_is_error (parsed_code_val));
+
+    res = jerry_run (parsed_code_val);
+    TEST_ASSERT (jerry_value_is_error (res));
+    res = jerry_get_value_from_error (res, true);
+    err_str_val = jerry_value_to_string (res);
+    err_str_size = jerry_get_string_size (err_str_val);
+
+    sz = jerry_string_to_char_buffer (err_str_val, err_str_buf, err_str_size);
+    err_str_buf[sz] = 0;
+
+    jerry_release_value (err_str_val);
+    jerry_release_value (parsed_code_val);
+    jerry_release_value (res);
+    TEST_ASSERT (!strcmp ((char *) err_str_buf,
+                          "SyntaxError: Primary expression expected. [<eval>:2:6]"));
 
     jerry_cleanup ();
   }

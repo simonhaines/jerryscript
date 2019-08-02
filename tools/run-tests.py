@@ -36,7 +36,7 @@ def skip_if(condition, desc):
 OPTIONS_PROFILE_MIN = ['--profile=minimal']
 OPTIONS_PROFILE_ES51 = [] # NOTE: same as ['--profile=es5.1']
 OPTIONS_PROFILE_ES2015 = ['--profile=es2015-subset']
-OPTIONS_VM_RECURSION_LIMIT = ['--vm-recursion-limit=1000']
+OPTIONS_STACK_LIMIT = ['--stack-limit=128']
 OPTIONS_DEBUG = ['--debug']
 OPTIONS_SNAPSHOT = ['--snapshot-save=on', '--snapshot-exec=on', '--jerry-cmdline-snapshot=on']
 OPTIONS_UNITTESTS = ['--unittests=on', '--jerry-cmdline=off', '--error-messages=on',
@@ -68,22 +68,22 @@ JERRY_UNITTESTS_OPTIONS = [
 # Test options for jerry-tests
 JERRY_TESTS_OPTIONS = [
     Options('jerry_tests-es5.1',
-            OPTIONS_PROFILE_ES51 + OPTIONS_VM_RECURSION_LIMIT),
+            OPTIONS_PROFILE_ES51 + OPTIONS_STACK_LIMIT),
     Options('jerry_tests-es5.1-snapshot',
-            OPTIONS_PROFILE_ES51 + OPTIONS_SNAPSHOT + OPTIONS_VM_RECURSION_LIMIT,
+            OPTIONS_PROFILE_ES51 + OPTIONS_SNAPSHOT + OPTIONS_STACK_LIMIT,
             ['--snapshot']),
     Options('jerry_tests-es5.1-debug',
-            OPTIONS_PROFILE_ES51 + OPTIONS_DEBUG + OPTIONS_VM_RECURSION_LIMIT),
+            OPTIONS_PROFILE_ES51 + OPTIONS_DEBUG + OPTIONS_STACK_LIMIT),
     Options('jerry_tests-es5.1-debug-snapshot',
-            OPTIONS_PROFILE_ES51 + OPTIONS_SNAPSHOT + OPTIONS_DEBUG + OPTIONS_VM_RECURSION_LIMIT,
+            OPTIONS_PROFILE_ES51 + OPTIONS_SNAPSHOT + OPTIONS_DEBUG + OPTIONS_STACK_LIMIT,
             ['--snapshot']),
     Options('jerry_tests-es5.1-debug-cpointer_32bit',
-            OPTIONS_PROFILE_ES51 + OPTIONS_DEBUG + OPTIONS_VM_RECURSION_LIMIT
+            OPTIONS_PROFILE_ES51 + OPTIONS_DEBUG + OPTIONS_STACK_LIMIT
             + ['--cpointer-32bit=on', '--mem-heap=1024']),
     Options('jerry_tests-es5.1-debug-external_context',
-            OPTIONS_PROFILE_ES51 + OPTIONS_DEBUG + OPTIONS_VM_RECURSION_LIMIT + ['--external-context=on']),
+            OPTIONS_PROFILE_ES51 + OPTIONS_DEBUG + OPTIONS_STACK_LIMIT + ['--external-context=on']),
     Options('jerry_tests-es2015_subset-debug',
-            OPTIONS_PROFILE_ES2015 + OPTIONS_DEBUG + OPTIONS_VM_RECURSION_LIMIT),
+            OPTIONS_PROFILE_ES2015 + OPTIONS_DEBUG + OPTIONS_STACK_LIMIT),
 ]
 
 # Test options for jerry-test-suite
@@ -148,7 +148,7 @@ JERRY_BUILDOPTIONS = [
     Options('buildoption_test-no_jerry_libm',
             ['--jerry-libm=off', '--link-lib=m']),
     Options('buildoption_test-no_lcache_prophashmap',
-            ['--compile-flag=-DCONFIG_ECMA_LCACHE_DISABLE', '--compile-flag=-DCONFIG_ECMA_PROPERTY_HASHMAP_DISABLE']),
+            ['--compile-flag=-DJERRY_LCACHE=0', '--compile-flag=-DJERRY_PROPRETY_HASHMAP=0']),
     Options('buildoption_test-external_context',
             ['--external-context=on']),
     Options('buildoption_test-shared_libs',
@@ -157,10 +157,8 @@ JERRY_BUILDOPTIONS = [
             ['--jerry-cmdline-test=on']),
     Options('buildoption_test-cmdline_snapshot',
             ['--jerry-cmdline-snapshot=on']),
-    Options('buildoption_test-regexp_recursion_limit',
-            ['--regexp-recursion-limit=1000']),
-    Options('buildoption_test-vm_recursion_limit',
-            OPTIONS_VM_RECURSION_LIMIT),
+    Options('buildoption_test-recursion_limit',
+            OPTIONS_STACK_LIMIT),
     Options('buildoption_test-single-source',
             ['--cmake-param=-DENABLE_ALL_IN_ONE_SOURCE=ON']),
 ]

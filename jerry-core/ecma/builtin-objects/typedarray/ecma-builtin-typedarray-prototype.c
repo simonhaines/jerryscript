@@ -29,6 +29,7 @@
 #include "jrt-libc-includes.h"
 #include "ecma-gc.h"
 #include "jmem.h"
+#include "ecma-iterator-object.h"
 
 #if ENABLED (JERRY_ES2015_BUILTIN_TYPEDARRAY)
 
@@ -311,6 +312,91 @@ ecma_builtin_typedarray_prototype_for_each (ecma_value_t this_arg, /**< this arg
                                                          cb_this_arg,
                                                          TYPEDARRAY_ROUTINE_FOREACH);
 } /* ecma_builtin_typedarray_prototype_for_each */
+
+
+#if ENABLED (JERRY_ES2015_BUILTIN_ITERATOR)
+/**
+ * Helper function for typedArray.prototype object's {'keys', 'values', 'entries', '@@iterator'}
+ * routines common parts.
+ *
+ * See also:
+ *          ECMA-262 v6, 22.2.3.15
+ *          ECMA-262 v6, 22.2.3.29
+ *          ECMA-262 v6, 22.2.3.6
+ *          ECMA-262 v6, 22.1.3.30
+ *
+ * Note:
+ *      Returned value must be freed with ecma_free_value.
+ *
+ * @return iterator result object, if success
+ *         error - otherwise
+ */
+static ecma_value_t
+ecma_builtin_typedarray_iterators_helper (ecma_value_t this_arg, /**< this argument */
+                                          uint8_t type) /**< any combination of ecma_iterator_type_t bits */
+{
+  if (!ecma_is_typedarray (this_arg))
+  {
+    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not a TypedArray."));
+  }
+
+  ecma_object_t *prototype_obj_p = ecma_builtin_get (ECMA_BUILTIN_ID_ARRAY_ITERATOR_PROTOTYPE);
+
+  return ecma_op_create_iterator_object (this_arg,
+                                         prototype_obj_p,
+                                         ECMA_PSEUDO_ARRAY_ITERATOR,
+                                         type);
+} /* ecma_builtin_typedarray_iterators_helper */
+
+/**
+ * The %TypedArray%.prototype object's 'keys' routine
+ *
+ * See also:
+ *          ES2015, 22.2.3.15
+ *          ES2015, 22.1.3.30
+ *
+ * @return ecma value
+ *         Returned value must be freed with ecma_free_value.
+ */
+static ecma_value_t
+ecma_builtin_typedarray_prototype_keys (ecma_value_t this_arg) /**< this argument */
+{
+  return ecma_builtin_typedarray_iterators_helper (this_arg, ECMA_ITERATOR_KEYS);
+} /* ecma_builtin_typedarray_prototype_keys */
+
+/**
+ * The %TypedArray%.prototype object's 'values' and @@iterator routines
+ *
+ * See also:
+ *          ES2015, 22.2.3.29
+ *          ES2015, 22.1.3.30
+ *
+ * @return ecma value
+ *         Returned value must be freed with ecma_free_value.
+ */
+static ecma_value_t
+ecma_builtin_typedarray_prototype_values (ecma_value_t this_arg) /**< this argument */
+{
+  return ecma_builtin_typedarray_iterators_helper (this_arg, ECMA_ITERATOR_VALUES);
+} /* ecma_builtin_typedarray_prototype_values */
+
+/**
+ * The %TypedArray%.prototype object's 'entries' routine
+ *
+ * See also:
+ *          ES2015, 22.2.3.6
+ *          ES2015, 22.1.3.30
+ *
+ * @return ecma value
+ *         Returned value must be freed with ecma_free_value.
+ */
+static ecma_value_t
+ecma_builtin_typedarray_prototype_entries (ecma_value_t this_arg) /**< this argument */
+{
+  return ecma_builtin_typedarray_iterators_helper (this_arg, ECMA_ITERATOR_KEYS_VALUES);
+} /* ecma_builtin_typedarray_prototype_entries */
+
+#endif /* ENABLED (JERRY_ES2015_BUILTIN_ITERATOR) */
 
 /**
  * The %TypedArray%.prototype object's 'map' routine
@@ -715,7 +801,7 @@ ecma_op_typedarray_set_with_typedarray (ecma_value_t this_arg, /**< this argumen
 
   /* 12. srcBuffer */
   ecma_object_t *src_arraybuffer_p = ecma_typedarray_get_arraybuffer (src_typedarray_p);
-  lit_utf8_byte_t *src_buffer_p = ecma_typedarray_get_buffer (src_typedarray_p);
+  lit_utf8_byte_t *src_buffer_p = ecma_arraybuffer_get_buffer (src_arraybuffer_p);
 
   /* 15. targetType */
   lit_magic_string_id_t target_class_id = ecma_object_get_class_name (target_typedarray_p);
@@ -760,14 +846,6 @@ ecma_op_typedarray_set_with_typedarray (ecma_value_t this_arg, /**< this argumen
     return ECMA_VALUE_UNDEFINED;
   }
 
-  /* 24.d, 25. srcByteIndex */
-  ecma_length_t src_byte_index = 0;
-
-  if (src_arraybuffer_p != target_arraybuffer_p)
-  {
-    src_byte_index = src_byte_offset;
-  }
-
   /* 26. targetByteIndex */
   uint32_t target_byte_index = target_offset_uint32 * target_element_size + target_byte_offset;
 
@@ -776,16 +854,16 @@ ecma_op_typedarray_set_with_typedarray (ecma_value_t this_arg, /**< this argumen
 
   if (src_class_id == target_class_id)
   {
-    memmove (target_buffer_p + target_byte_index, src_buffer_p + src_byte_index,
+    memmove (target_buffer_p + target_byte_index, src_buffer_p + src_byte_offset,
              target_element_size * src_length_uint32);
   }
   else
   {
     while (target_byte_index < limit)
     {
-      ecma_number_t elem_num = ecma_get_typedarray_element (src_buffer_p + src_byte_index, src_class_id);
+      ecma_number_t elem_num = ecma_get_typedarray_element (src_buffer_p + src_byte_offset, src_class_id);
       ecma_set_typedarray_element (target_buffer_p + target_byte_index, elem_num, target_class_id);
-      src_byte_index += src_element_size;
+      src_byte_offset += src_element_size;
       target_byte_index += target_element_size;
     }
   }
@@ -1501,19 +1579,18 @@ ecma_builtin_typedarray_prototype_sort (ecma_value_t this_arg, /**< this argumen
 } /* ecma_builtin_typedarray_prototype_sort */
 
 /**
- * The %TypedArray%.prototype object's 'find' routine
- *
- * See also:
- *          ECMA-262 v6, 22.2.3.10
+ * The %TypedArray%.prototype object's 'find' and 'findIndex' routine helper
  *
  * @return ecma value
  *         Returned value must be freed with ecma_free_value.
  */
 static ecma_value_t
-ecma_builtin_typedarray_prototype_find (ecma_value_t this_arg, /**< this argument */
-                                        ecma_value_t predicate, /**< callback function */
-                                        ecma_value_t predicate_this_arg) /**< this argument for
-                                                                          *   invoke predicate */
+ecma_builtin_typedarray_prototype_find_helper (ecma_value_t this_arg, /**< this argument */
+                                               ecma_value_t predicate, /**< callback function */
+                                               ecma_value_t predicate_this_arg, /**< this argument for
+                                                                                 *   invoke predicate */
+                                               bool is_find) /**< true - find routine
+                                                              *   false - findIndex routine */
 {
   if (!ecma_is_typedarray (this_arg))
   {
@@ -1544,7 +1621,7 @@ ecma_builtin_typedarray_prototype_find (ecma_value_t this_arg, /**< this argumen
     ecma_number_t element_num = ecma_get_typedarray_element (typedarray_buffer_p + byte_index, class_id);
     ecma_value_t element_value = ecma_make_number_value (element_num);
 
-    ecma_value_t call_args[] = { element_value, ecma_make_uint32_value (buffer_index++), this_arg };
+    ecma_value_t call_args[] = { element_value, ecma_make_uint32_value (buffer_index), this_arg };
 
     ecma_value_t call_value = ecma_op_function_call (func_object_p, predicate_this_arg, call_args, 3);
 
@@ -1559,14 +1636,56 @@ ecma_builtin_typedarray_prototype_find (ecma_value_t this_arg, /**< this argumen
 
     if (call_result)
     {
-      return element_value;
-    }
+      if (is_find)
+      {
+        return element_value;
+      }
 
+      ecma_free_value (element_value);
+      return ecma_make_uint32_value (buffer_index);
+    }
+    buffer_index++;
     ecma_free_value (element_value);
   }
 
-  return ECMA_VALUE_UNDEFINED;
+  return is_find ? ECMA_VALUE_UNDEFINED : ecma_make_integer_value (-1);
+} /* ecma_builtin_typedarray_prototype_find_helper */
+
+/**
+ * The %TypedArray%.prototype object's 'find' routine
+ *
+ * See also:
+ *          ECMA-262 v6, 22.2.3.10
+ *
+ * @return ecma value
+ *         Returned value must be freed with ecma_free_value.
+ */
+static ecma_value_t
+ecma_builtin_typedarray_prototype_find (ecma_value_t this_arg, /**< this argument */
+                                        ecma_value_t predicate, /**< callback function */
+                                        ecma_value_t predicate_this_arg) /**< this argument for
+                                                                          *   invoke predicate */
+{
+  return ecma_builtin_typedarray_prototype_find_helper (this_arg, predicate, predicate_this_arg, true);
 } /* ecma_builtin_typedarray_prototype_find */
+
+/**
+ * The %TypedArray%.prototype object's 'findIndex' routine
+ *
+ * See also:
+ *          ECMA-262 v6, 22.2.3.11
+ *
+ * @return ecma value
+ *         Returned value must be freed with ecma_free_value.
+ */
+static ecma_value_t
+ecma_builtin_typedarray_prototype_find_index (ecma_value_t this_arg, /**< this argument */
+                                              ecma_value_t predicate, /**< callback function */
+                                              ecma_value_t predicate_this_arg) /**< this argument for
+                                                                                *   invoke predicate */
+{
+  return ecma_builtin_typedarray_prototype_find_helper (this_arg, predicate, predicate_this_arg, false);
+} /* ecma_builtin_typedarray_prototype_find_index */
 
 /**
  * @}

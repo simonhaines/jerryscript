@@ -71,11 +71,11 @@ JERRY_STATIC_ASSERT ((int) RE_FLAG_GLOBAL == (int) JERRY_REGEXP_FLAG_GLOBAL
                      re_flags_t_must_be_equal_to_jerry_regexp_flags_t);
 #endif /* ENABLED (JERRY_BUILTIN_REGEXP) */
 
-#if defined JERRY_DISABLE_JS_PARSER && !defined JERRY_ENABLE_SNAPSHOT_EXEC
-#error JERRY_ENABLE_SNAPSHOT_EXEC must be defined if JERRY_DISABLE_JS_PARSER is defined!
-#endif /* JERRY_DISABLE_JS_PARSER && !JERRY_ENABLE_SNAPSHOT_EXEC */
+#if !ENABLED (JERRY_PARSER) && !ENABLED (JERRY_SNAPSHOT_EXEC)
+#error "JERRY_SNAPSHOT_EXEC must be enabled if JERRY_PARSER is disabled!"
+#endif /* !ENABLED (JERRY_PARSER) && !ENABLED (JERRY_SNAPSHOT_EXEC) */
 
-#ifdef JERRY_ENABLE_ERROR_MESSAGES
+#if ENABLED (JERRY_ERROR_MESSAGES)
 
 /**
  * Error message, if an argument is has an error flag
@@ -87,7 +87,7 @@ static const char * const error_value_msg_p = "argument cannot have an error fla
  */
 static const char * const wrong_args_msg_p = "wrong type of argument";
 
-#endif /* JERRY_ENABLE_ERROR_MESSAGES */
+#endif /* ENABLED (JERRY_ERROR_MESSAGES) */
 
 /** \addtogroup jerry Jerry engine interface
  * @{
@@ -191,14 +191,14 @@ jerry_cleanup (void)
 {
   jerry_assert_api_available ();
 
-#ifdef JERRY_DEBUGGER
+#if ENABLED (JERRY_DEBUGGER)
   if (JERRY_CONTEXT (debugger_flags) & JERRY_DEBUGGER_CONNECTED)
   {
     jerry_debugger_send_type (JERRY_DEBUGGER_CLOSE_CONNECTION);
 
     jerry_debugger_transport_close ();
   }
-#endif /* JERRY_DEBUGGER */
+#endif /* ENABLED (JERRY_DEBUGGER) */
 
   for (jerry_context_data_header_t *this_p = JERRY_CONTEXT (context_data_p);
        this_p != NULL;
@@ -292,8 +292,14 @@ jerry_gc (jerry_gc_mode_t mode) /**< operational mode */
 {
   jerry_assert_api_available ();
 
-  ecma_gc_run (mode == JERRY_GC_SEVERITY_LOW ? JMEM_FREE_UNUSED_MEMORY_SEVERITY_LOW
-                                             : JMEM_FREE_UNUSED_MEMORY_SEVERITY_HIGH);
+  if (mode == JERRY_GC_PRESSURE_LOW)
+  {
+    /* Call GC directly, because 'ecma_free_unused_memory' might decide it's not yet worth it. */
+    ecma_gc_run ();
+    return;
+  }
+
+  ecma_free_unused_memory (JMEM_PRESSURE_HIGH);
 } /* jerry_gc */
 
 /**
@@ -305,7 +311,7 @@ jerry_gc (jerry_gc_mode_t mode) /**< operational mode */
 bool
 jerry_get_memory_stats (jerry_heap_stats_t *out_stats_p) /**< [out] heap memory stats */
 {
-#ifdef JMEM_STATS
+#if ENABLED (JERRY_MEM_STATS)
   if (out_stats_p == NULL)
   {
     return false;
@@ -324,10 +330,10 @@ jerry_get_memory_stats (jerry_heap_stats_t *out_stats_p) /**< [out] heap memory 
   };
 
   return true;
-#else
+#else /* !ENABLED (JERRY_MEM_STATS) */
   JERRY_UNUSED (out_stats_p);
   return false;
-#endif
+#endif /* ENABLED (JERRY_MEM_STATS) */
 } /* jerry_get_memory_stats */
 
 /**
@@ -379,7 +385,7 @@ jerry_parse (const jerry_char_t *resource_name_p, /**< resource name (usually a 
              size_t source_size, /**< script source size */
              uint32_t parse_opts) /**< jerry_parse_opts_t option bits */
 {
-#if defined JERRY_DEBUGGER && !defined JERRY_DISABLE_JS_PARSER
+#if ENABLED (JERRY_DEBUGGER) && ENABLED (JERRY_PARSER)
   if ((JERRY_CONTEXT (debugger_flags) & JERRY_DEBUGGER_CONNECTED)
       && resource_name_length > 0)
   {
@@ -388,18 +394,25 @@ jerry_parse (const jerry_char_t *resource_name_p, /**< resource name (usually a 
                                 resource_name_p,
                                 resource_name_length);
   }
-#else /* !(JERRY_DEBUGGER && !JERRY_DISABLE_JS_PARSER) */
+#else /* !(ENABLED (JERRY_DEBUGGER) && ENABLED (JERRY_PARSER)) */
   JERRY_UNUSED (resource_name_p);
   JERRY_UNUSED (resource_name_length);
-#endif /* JERRY_DEBUGGER && !JERRY_DISABLE_JS_PARSER */
+#endif /* ENABLED (JERRY_DEBUGGER) && ENABLED (JERRY_PARSER) */
 
-#ifndef JERRY_DISABLE_JS_PARSER
+#if ENABLED (JERRY_PARSER)
   jerry_assert_api_available ();
 
-#if defined JERRY_ENABLE_LINE_INFO && !defined JERRY_DISABLE_JS_PARSER
-  JERRY_CONTEXT (resource_name) = ecma_find_or_create_literal_string (resource_name_p,
-                                                                      (lit_utf8_size_t) resource_name_length);
-#endif /* JERRY_ENABLE_LINE_INFO && !JERRY_DISABLE_JS_PARSER */
+#if ENABLED (JERRY_LINE_INFO) || ENABLED (JERRY_ERROR_MESSAGES) || ENABLED (JERRY_ES2015_MODULE_SYSTEM)
+  if (resource_name_length == 0)
+  {
+    JERRY_CONTEXT (resource_name) = ecma_make_magic_string_value (LIT_MAGIC_STRING_RESOURCE_ANON);
+  }
+  else
+  {
+    JERRY_CONTEXT (resource_name) = ecma_find_or_create_literal_string (resource_name_p,
+                                                                        (lit_utf8_size_t) resource_name_length);
+  }
+#endif /* ENABLED (JERRY_LINE_INFO) || ENABLED (JERRY_ERROR_MESSAGES) || ENABLED (JERRY_ES2015_MODULE_SYSTEM) */
 
   ecma_compiled_code_t *bytecode_data_p;
   ecma_value_t parse_status;
@@ -424,13 +437,13 @@ jerry_parse (const jerry_char_t *resource_name_p, /**< resource name (usually a 
   ecma_bytecode_deref (bytecode_data_p);
 
   return ecma_make_object_value (func_obj_p);
-#else /* JERRY_DISABLE_JS_PARSER */
+#else /* !ENABLED (JERRY_PARSER) */
   JERRY_UNUSED (source_p);
   JERRY_UNUSED (source_size);
   JERRY_UNUSED (parse_opts);
 
   return jerry_throw (ecma_raise_syntax_error (ECMA_ERR_MSG ("The parser has been disabled.")));
-#endif /* !JERRY_DISABLE_JS_PARSER */
+#endif /* ENABLED (JERRY_PARSER) */
 } /* jerry_parse */
 
 /**
@@ -449,7 +462,7 @@ jerry_parse_function (const jerry_char_t *resource_name_p, /**< resource name (u
                       size_t source_size, /**< script source size */
                       uint32_t parse_opts) /**< jerry_parse_opts_t option bits */
 {
-#if defined JERRY_DEBUGGER && !defined JERRY_DISABLE_JS_PARSER
+#if ENABLED (JERRY_DEBUGGER) && ENABLED (JERRY_PARSER)
   if (JERRY_CONTEXT (debugger_flags) & JERRY_DEBUGGER_CONNECTED)
   {
     jerry_debugger_send_string (JERRY_DEBUGGER_SOURCE_CODE_NAME,
@@ -457,21 +470,28 @@ jerry_parse_function (const jerry_char_t *resource_name_p, /**< resource name (u
                                 resource_name_p,
                                 resource_name_length);
   }
-#else /* !(JERRY_DEBUGGER && !JERRY_DISABLE_JS_PARSER) */
+#else /* !(ENABLED (JERRY_DEBUGGER) && ENABLED (JERRY_PARSER)) */
   JERRY_UNUSED (resource_name_p);
   JERRY_UNUSED (resource_name_length);
-#endif /* JERRY_DEBUGGER && !JERRY_DISABLE_JS_PARSER */
+#endif /* ENABLED (JERRY_DEBUGGER) && ENABLED (JERRY_PARSER) */
 
-#ifndef JERRY_DISABLE_JS_PARSER
+#if ENABLED (JERRY_PARSER)
   jerry_assert_api_available ();
 
   ecma_compiled_code_t *bytecode_data_p;
   ecma_value_t parse_status;
 
-#ifdef JERRY_ENABLE_LINE_INFO
-  JERRY_CONTEXT (resource_name) = ecma_find_or_create_literal_string (resource_name_p,
-                                                                      (lit_utf8_size_t) resource_name_length);
-#endif /* JERRY_ENABLE_LINE_INFO */
+#if ENABLED (JERRY_LINE_INFO) || ENABLED (JERRY_ERROR_MESSAGES) || ENABLED (JERRY_ES2015_MODULE_SYSTEM)
+  if (resource_name_length == 0)
+  {
+    JERRY_CONTEXT (resource_name) = ecma_make_magic_string_value (LIT_MAGIC_STRING_RESOURCE_ANON);
+  }
+  else
+  {
+    JERRY_CONTEXT (resource_name) = ecma_find_or_create_literal_string (resource_name_p,
+                                                                        (lit_utf8_size_t) resource_name_length);
+  }
+#endif /* ENABLED (JERRY_LINE_INFO) || ENABLED (JERRY_ERROR_MESSAGES) || ENABLED (JERRY_ES2015_MODULE_SYSTEM) */
 
   if (arg_list_p == NULL)
   {
@@ -499,7 +519,7 @@ jerry_parse_function (const jerry_char_t *resource_name_p, /**< resource name (u
   ecma_bytecode_deref (bytecode_data_p);
 
   return ecma_make_object_value (func_obj_p);
-#else /* JERRY_DISABLE_JS_PARSER */
+#else /* !ENABLED (JERRY_PARSER) */
   JERRY_UNUSED (arg_list_p);
   JERRY_UNUSED (arg_list_size);
   JERRY_UNUSED (source_p);
@@ -507,7 +527,7 @@ jerry_parse_function (const jerry_char_t *resource_name_p, /**< resource name (u
   JERRY_UNUSED (parse_opts);
 
   return jerry_throw (ecma_raise_syntax_error (ECMA_ERR_MSG ("The parser has been disabled.")));
-#endif /* !JERRY_DISABLE_JS_PARSER */
+#endif /* ENABLED (JERRY_PARSER) */
 } /* jerry_parse_function */
 
 /**
@@ -878,36 +898,36 @@ jerry_is_feature_enabled (const jerry_feature_t feature) /**< feature to check *
   JERRY_ASSERT (feature < JERRY_FEATURE__COUNT);
 
   return (false
-#ifdef JERRY_CPOINTER_32_BIT
+#if ENABLED (JERRY_CPOINTER_32_BIT)
           || feature == JERRY_FEATURE_CPOINTER_32_BIT
-#endif /* JERRY_CPOINTER_32_BIT */
-#ifdef JERRY_ENABLE_ERROR_MESSAGES
+#endif /* ENABLED (JERRY_CPOINTER_32_BIT) */
+#if ENABLED (JERRY_ERROR_MESSAGES)
           || feature == JERRY_FEATURE_ERROR_MESSAGES
-#endif /* JERRY_ENABLE_ERROR_MESSAGES */
-#ifndef JERRY_DISABLE_JS_PARSER
+#endif /* ENABLED (JERRY_ERROR_MESSAGES) */
+#if ENABLED (JERRY_PARSER)
           || feature == JERRY_FEATURE_JS_PARSER
-#endif /* !JERRY_DISABLE_JS_PARSER */
-#ifdef JMEM_STATS
+#endif /* ENABLED (JERRY_PARSER) */
+#if ENABLED (JERRY_MEM_STATS)
           || feature == JERRY_FEATURE_MEM_STATS
-#endif /* JMEM_STATS */
-#ifdef PARSER_DUMP_BYTE_CODE
+#endif /* ENABLED (JERRY_MEM_STATS) */
+#if ENABLED (JERRY_PARSER_DUMP_BYTE_CODE)
           || feature == JERRY_FEATURE_PARSER_DUMP
-#endif /* PARSER_DUMP_BYTE_CODE */
-#ifdef REGEXP_DUMP_BYTE_CODE
+#endif /* ENABLED (JERRY_PARSER_DUMP_BYTE_CODE) */
+#if ENABLED (JERRY_REGEXP_DUMP_BYTE_CODE)
           || feature == JERRY_FEATURE_REGEXP_DUMP
-#endif /* REGEXP_DUMP_BYTE_CODE */
-#ifdef JERRY_ENABLE_SNAPSHOT_SAVE
+#endif /* ENABLED (JERRY_REGEXP_DUMP_BYTE_CODE) */
+#if ENABLED (JERRY_SNAPSHOT_SAVE)
           || feature == JERRY_FEATURE_SNAPSHOT_SAVE
-#endif /* JERRY_ENABLE_SNAPSHOT_SAVE */
-#ifdef JERRY_ENABLE_SNAPSHOT_EXEC
+#endif /* ENABLED (JERRY_SNAPSHOT_SAVE) */
+#if ENABLED (JERRY_SNAPSHOT_EXEC)
           || feature == JERRY_FEATURE_SNAPSHOT_EXEC
-#endif /* JERRY_ENABLE_SNAPSHOT_EXEC */
-#ifdef JERRY_DEBUGGER
+#endif /* ENABLED (JERRY_SNAPSHOT_EXEC) */
+#if ENABLED (JERRY_DEBUGGER)
           || feature == JERRY_FEATURE_DEBUGGER
-#endif /* JERRY_DEBUGGER */
-#ifdef JERRY_VM_EXEC_STOP
+#endif /* ENABLED (JERRY_DEBUGGER) */
+#if ENABLED (JERRY_VM_EXEC_STOP)
           || feature == JERRY_FEATURE_VM_EXEC_STOP
-#endif /* JERRY_VM_EXEC_STOP */
+#endif /* ENABLED (JERRY_VM_EXEC_STOP) */
 #if ENABLED (JERRY_BUILTIN_JSON)
           || feature == JERRY_FEATURE_JSON
 #endif /* ENABLED (JERRY_BUILTIN_JSON) */
@@ -929,12 +949,12 @@ jerry_is_feature_enabled (const jerry_feature_t feature) /**< feature to check *
 #if ENABLED (JERRY_BUILTIN_REGEXP)
           || feature == JERRY_FEATURE_REGEXP
 #endif /* ENABLED (JERRY_BUILTIN_REGEXP) */
-#ifdef JERRY_ENABLE_LINE_INFO
+#if ENABLED (JERRY_LINE_INFO)
           || feature == JERRY_FEATURE_LINE_INFO
-#endif /* JERRY_ENABLE_LINE_INFO */
-#ifdef JERRY_ENABLE_LOGGING
+#endif /* ENABLED (JERRY_LINE_INFO) */
+#if ENABLED (JERRY_LOGGING)
           || feature == JERRY_FEATURE_LOGGING
-#endif /* JERRY_ENABLE_LOGGING */
+#endif /* ENABLED (JERRY_LOGGING) */
           );
 } /* jerry_is_feature_enabled */
 
@@ -2655,7 +2675,8 @@ jerry_get_object_native_pointer (const jerry_value_t obj_val, /**< object to get
  * Note:
  *      If a non-NULL free callback is specified in the native type info,
  *      it will be called by the garbage collector when the object is freed.
- *      The type info is always overwrites the previous value, so passing
+ *      This callback **must not** invoke API functions.
+ *      The type info always overwrites the previous value, so passing
  *      a NULL value deletes the current type info.
  */
 void
@@ -2900,11 +2921,11 @@ jerry_create_context (uint32_t heap_size, /**< the size of heap */
 {
   JERRY_UNUSED (heap_size);
 
-#ifdef JERRY_ENABLE_EXTERNAL_CONTEXT
+#if ENABLED (JERRY_EXTERNAL_CONTEXT)
 
   size_t total_size = sizeof (jerry_context_t) + JMEM_ALIGNMENT;
 
-#ifndef JERRY_SYSTEM_ALLOCATOR
+#if !ENABLED (JERRY_SYSTEM_ALLOCATOR)
   heap_size = JERRY_ALIGNUP (heap_size, JMEM_ALIGNMENT);
 
   /* Minimum heap size is 1Kbyte. */
@@ -2914,7 +2935,7 @@ jerry_create_context (uint32_t heap_size, /**< the size of heap */
   }
 
   total_size += heap_size;
-#endif /* !JERRY_SYSTEM_ALLOCATOR */
+#endif /* !ENABLED (JERRY_SYSTEM_ALLOCATOR) */
 
   total_size = JERRY_ALIGNUP (total_size, JMEM_ALIGNMENT);
 
@@ -2932,29 +2953,29 @@ jerry_create_context (uint32_t heap_size, /**< the size of heap */
 
   uint8_t *byte_p = (uint8_t *) context_ptr;
 
-#ifndef JERRY_SYSTEM_ALLOCATOR
+#if !ENABLED (JERRY_SYSTEM_ALLOCATOR)
   context_p->heap_p = (jmem_heap_t *) byte_p;
   context_p->heap_size = heap_size;
   byte_p += heap_size;
-#endif /* !JERRY_SYSTEM_ALLOCATOR */
+#endif /* !ENABLED (JERRY_SYSTEM_ALLOCATOR) */
 
   JERRY_ASSERT (byte_p <= ((uint8_t *) context_p) + total_size);
 
   JERRY_UNUSED (byte_p);
   return context_p;
 
-#else /* !JERRY_ENABLE_EXTERNAL_CONTEXT */
+#else /* !ENABLED (JERRY_EXTERNAL_CONTEXT) */
 
   JERRY_UNUSED (alloc);
   JERRY_UNUSED (cb_data_p);
 
   return NULL;
 
-#endif /* JERRY_ENABLE_EXTERNAL_CONTEXT */
+#endif /* ENABLED (JERRY_EXTERNAL_CONTEXT) */
 } /* jerry_create_context */
 
 /**
- * If JERRY_VM_EXEC_STOP is defined the callback passed to this function is
+ * If JERRY_VM_EXEC_STOP is enabled the callback passed to this function is
  * periodically called with the user_p argument. If frequency is greater
  * than 1, the callback is only called at every frequency ticks.
  */
@@ -2963,7 +2984,7 @@ jerry_set_vm_exec_stop_callback (jerry_vm_exec_stop_callback_t stop_cb, /**< per
                                  void *user_p, /**< pointer passed to the function */
                                  uint32_t frequency) /**< frequency of the function call */
 {
-#ifdef JERRY_VM_EXEC_STOP
+#if ENABLED (JERRY_VM_EXEC_STOP)
   if (frequency == 0)
   {
     frequency = 1;
@@ -2973,11 +2994,11 @@ jerry_set_vm_exec_stop_callback (jerry_vm_exec_stop_callback_t stop_cb, /**< per
   JERRY_CONTEXT (vm_exec_stop_counter) = frequency;
   JERRY_CONTEXT (vm_exec_stop_user_p) = user_p;
   JERRY_CONTEXT (vm_exec_stop_cb) = stop_cb;
-#else /* !JERRY_VM_EXEC_STOP */
+#else /* !ENABLED (JERRY_VM_EXEC_STOP) */
   JERRY_UNUSED (stop_cb);
   JERRY_UNUSED (user_p);
   JERRY_UNUSED (frequency);
-#endif /* JERRY_VM_EXEC_STOP */
+#endif /* ENABLED (JERRY_VM_EXEC_STOP) */
 } /* jerry_set_vm_exec_stop_callback */
 
 /**
@@ -3309,7 +3330,7 @@ jerry_value_is_dataview (const jerry_value_t value) /**< value to check if it is
  *         TypeError if the object is not a DataView.
  */
 jerry_value_t
-jerry_get_dataview_buffer (jerry_value_t value, /**< DataView to get the arraybuffer from */
+jerry_get_dataview_buffer (const jerry_value_t value, /**< DataView to get the arraybuffer from */
                            jerry_length_t *byte_offset, /**< [out] byteOffset property */
                            jerry_length_t *byte_length) /**< [out] byteLength property */
 {

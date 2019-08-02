@@ -246,7 +246,7 @@ static ecma_value_t
 re_parse_alternative (re_compiler_ctx_t *re_ctx_p, /**< RegExp compiler context */
                       bool expect_eof) /**< expect end of file */
 {
-  REGEXP_RECURSION_COUNTER_DECREASE_AND_TEST ();
+  ECMA_CHECK_STACK_USAGE ();
   uint32_t idx;
   re_bytecode_ctx_t *bc_ctx_p = re_ctx_p->bytecode_ctx_p;
   ecma_value_t ret_value = ECMA_VALUE_EMPTY;
@@ -441,7 +441,6 @@ re_parse_alternative (re_compiler_ctx_t *re_ctx_p, /**< RegExp compiler context 
         else
         {
           re_insert_u32 (bc_ctx_p, alterantive_offset, re_get_bytecode_length (bc_ctx_p) - alterantive_offset);
-          REGEXP_RECURSION_COUNTER_INCREASE ();
           should_loop = false;
         }
         break;
@@ -455,7 +454,6 @@ re_parse_alternative (re_compiler_ctx_t *re_ctx_p, /**< RegExp compiler context 
         else
         {
           re_insert_u32 (bc_ctx_p, alterantive_offset, re_get_bytecode_length (bc_ctx_p) - alterantive_offset);
-          REGEXP_RECURSION_COUNTER_INCREASE ();
           should_loop = false;
         }
 
@@ -562,7 +560,6 @@ re_compile_bytecode (const re_compiled_code_t **out_bytecode_p, /**< [out] point
   re_ctx.flags = flags;
   re_ctx.highest_backref = 0;
   re_ctx.num_of_non_captures = 0;
-  REGEXP_RECURSION_COUNTER_INIT ();
 
   re_bytecode_ctx_t bc_ctx;
   bc_ctx.block_start_p = NULL;
@@ -629,12 +626,12 @@ re_compile_bytecode (const re_compiled_code_t **out_bytecode_p, /**< [out] point
   }
   else
   {
-#ifdef REGEXP_DUMP_BYTE_CODE
+#if ENABLED (JERRY_REGEXP_DUMP_BYTE_CODE)
     if (JERRY_CONTEXT (jerry_init_flags) & ECMA_INIT_SHOW_REGEXP_OPCODES)
     {
       re_dump_bytecode (&bc_ctx);
     }
-#endif /* REGEXP_DUMP_BYTE_CODE */
+#endif /* ENABLED (JERRY_REGEXP_DUMP_BYTE_CODE) */
 
     /* The RegExp bytecode contains at least a RE_OP_SAVE_AT_START opdoce, so it cannot be NULL. */
     JERRY_ASSERT (bc_ctx.block_start_p != NULL);

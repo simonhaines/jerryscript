@@ -15,7 +15,7 @@
 
 #include "js-parser-internal.h"
 
-#ifndef JERRY_DISABLE_JS_PARSER
+#if ENABLED (JERRY_PARSER)
 #include "jcontext.h"
 
 #include "ecma-helpers.h"
@@ -163,6 +163,14 @@ parser_emit_unary_lvalue_opcode (parser_context_t *context_p, /**< context */
   {
     JERRY_ASSERT (CBC_SAME_ARGS (CBC_PUSH_PROP, opcode));
     context_p->last_cbc_opcode = (uint16_t) opcode;
+  }
+  else if (context_p->last_cbc_opcode == CBC_PUSH_THIS_LITERAL
+           && context_p->last_cbc.literal_type == LEXER_IDENT_LITERAL)
+  {
+    context_p->last_cbc_opcode = CBC_PUSH_THIS;
+    parser_emit_cbc_literal (context_p,
+                             (uint16_t) (opcode + CBC_UNARY_LVALUE_WITH_IDENT),
+                             context_p->lit_object.index);
   }
   else
   {
@@ -357,6 +365,22 @@ parser_append_object_literal_item (parser_context_t *context_p, /**< context */
 #endif /* !ENABLED (JERRY_ES2015_OBJECT_INITIALIZER) */
 
 /**
+ * Description of "get" literal string.
+ */
+static const lexer_lit_location_t lexer_get_literal =
+{
+  (const uint8_t *) "get", 3, LEXER_STRING_LITERAL, false
+};
+
+/**
+ * Description of "set" literal string.
+ */
+static const lexer_lit_location_t lexer_set_literal =
+{
+  (const uint8_t *) "set", 3, LEXER_STRING_LITERAL, false
+};
+
+/**
  * Parse class as an object literal.
  */
 static void
@@ -382,18 +406,29 @@ parser_parse_class_literal (parser_context_t *context_p) /**< context */
       break;
     }
 
+    bool is_computed = false;
+
     if (context_p->token.type == LEXER_PROPERTY_GETTER || context_p->token.type == LEXER_PROPERTY_SETTER)
     {
       uint16_t literal_index, function_literal_index;
       bool is_getter = (context_p->token.type == LEXER_PROPERTY_GETTER);
+
+      lexer_skip_empty_statements (context_p);
+
+      if (lexer_check_next_character (context_p, LIT_CHAR_LEFT_PAREN))
+      {
+        lexer_construct_literal_object (context_p,
+                                        (is_getter ? (lexer_lit_location_t *) &lexer_get_literal
+                                                   : (lexer_lit_location_t *) &lexer_set_literal),
+                                        LEXER_STRING_LITERAL);
+        goto parse_class_method;
+      }
 
       uint32_t accessor_status_flags = PARSER_IS_FUNCTION | PARSER_IS_CLOSURE;
       accessor_status_flags |= (is_getter ? PARSER_IS_PROPERTY_GETTER : PARSER_IS_PROPERTY_SETTER);
 
       lexer_expect_object_literal_id (context_p, LEXER_OBJ_IDENT_CLASS_METHOD | LEXER_OBJ_IDENT_ONLY_IDENTIFIERS);
       literal_index = context_p->lit_object.index;
-
-      bool is_computed = false;
 
       if (context_p->token.type == LEXER_RIGHT_SQUARE)
       {
@@ -491,8 +526,6 @@ parser_parse_class_literal (parser_context_t *context_p) /**< context */
       continue;
     }
 
-    bool is_computed = false;
-
     if (context_p->token.type == LEXER_RIGHT_SQUARE)
     {
       is_computed = true;
@@ -503,6 +536,7 @@ parser_parse_class_literal (parser_context_t *context_p) /**< context */
       parser_raise_error (context_p, PARSER_ERR_CLASS_STATIC_PROTOTYPE);
     }
 
+parse_class_method:
     parser_flush_cbc (context_p);
 
     uint16_t literal_index = context_p->lit_object.index;
@@ -903,10 +937,10 @@ parser_parse_function_expression (parser_context_t *context_p, /**< context */
 
   if (status_flags & PARSER_IS_FUNC_EXPRESSION)
   {
-#ifdef JERRY_DEBUGGER
+#if ENABLED (JERRY_DEBUGGER)
     parser_line_counter_t debugger_line = context_p->token.line;
     parser_line_counter_t debugger_column = context_p->token.column;
-#endif /* JERRY_DEBUGGER */
+#endif /* ENABLED (JERRY_DEBUGGER) */
 
     if (!lexer_check_next_character (context_p, LIT_CHAR_LEFT_PAREN))
     {
@@ -922,7 +956,7 @@ parser_parse_function_expression (parser_context_t *context_p, /**< context */
 
       lexer_construct_literal_object (context_p, &context_p->token.lit_location, LEXER_STRING_LITERAL);
 
-#ifdef JERRY_DEBUGGER
+#if ENABLED (JERRY_DEBUGGER)
       if (JERRY_CONTEXT (debugger_flags) & JERRY_DEBUGGER_CONNECTED)
       {
         jerry_debugger_send_string (JERRY_DEBUGGER_FUNCTION_NAME,
@@ -934,7 +968,7 @@ parser_parse_function_expression (parser_context_t *context_p, /**< context */
         context_p->token.line = debugger_line;
         context_p->token.column = debugger_column;
       }
-#endif /* JERRY_DEBUGGER */
+#endif /* ENABLED (JERRY_DEBUGGER) */
 
       if (context_p->token.literal_is_reserved
           || context_p->lit_object.type != LEXER_LITERAL_OBJECT_ANY)
@@ -1498,9 +1532,31 @@ parser_parse_unary_expression (parser_context_t *context_p, /**< context */
 static void
 parser_process_unary_expression (parser_context_t *context_p) /**< context */
 {
+#if ENABLED (JERRY_ES2015_CLASS)
+  /* Track to see if a property was accessed or not */
+  bool property_accessed = false;
+#endif /* ENABLED (JERRY_ES2015_CLASS) */
+
   /* Parse postfix part of a primary expression. */
   while (true)
   {
+#if ENABLED (JERRY_ES2015_CLASS)
+    if (context_p->token.type == LEXER_DOT || context_p->token.type == LEXER_LEFT_SQUARE)
+    {
+      if (property_accessed)
+      {
+        /**
+         * In the case of "super.prop1.prop2(...)" the second property access should not
+         * generate a super prop call thus the 'PARSER_CLASS_SUPER_PROP_REFERENCE' flags should be removed.
+         *
+         * Similar case:  "super[propname].prop2(...)"
+         */
+        context_p->status_flags &= (uint32_t) ~PARSER_CLASS_SUPER_PROP_REFERENCE;
+      }
+      property_accessed = true;
+    }
+#endif /* ENABLED (JERRY_ES2015_CLASS) */
+
     /* Since break would only break the switch, we use
      * continue to continue this loop. Without continue,
      * the code abandons the loop. */
@@ -2352,4 +2408,4 @@ parser_parse_expression (parser_context_t *context_p, /**< context */
  * @}
  */
 
-#endif /* !JERRY_DISABLE_JS_PARSER */
+#endif /* ENABLED (JERRY_PARSER) */

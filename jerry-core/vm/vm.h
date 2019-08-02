@@ -207,6 +207,11 @@ typedef enum
   VM_OC_FOR_IN_CREATE_CONTEXT,   /**< for in create context */
   VM_OC_FOR_IN_GET_NEXT,         /**< get next */
   VM_OC_FOR_IN_HAS_NEXT,         /**< has next */
+#if ENABLED (JERRY_ES2015_FOR_OF)
+  VM_OC_FOR_OF_CREATE_CONTEXT,   /**< for of create context */
+  VM_OC_FOR_OF_GET_NEXT,         /**< get next */
+  VM_OC_FOR_OF_HAS_NEXT,         /**< has next */
+#endif /* ENABLED (JERRY_ES2015_FOR_OF) */
   VM_OC_TRY,                     /**< try */
   VM_OC_CATCH,                   /**< catch */
   VM_OC_FINALLY,                 /**< finally */
@@ -227,14 +232,14 @@ typedef enum
   VM_OC_PUSH_CONSTRUCTOR_THIS,   /**< push 'this' inside a class constructor */
   VM_OC_CONSTRUCTOR_RET,         /**< explicit return from a class constructor */
 #endif /* ENABLED (JERRY_ES2015_CLASS) */
-#ifdef JERRY_DEBUGGER
+#if ENABLED (JERRY_DEBUGGER)
   VM_OC_BREAKPOINT_ENABLED,      /**< enabled breakpoint for debugger */
   VM_OC_BREAKPOINT_DISABLED,     /**< disabled breakpoint for debugger */
-#endif /* JERRY_DEBUGGER */
-#ifdef JERRY_ENABLE_LINE_INFO
+#endif /* ENABLED (JERRY_DEBUGGER) */
+#if ENABLED (JERRY_LINE_INFO)
   VM_OC_RESOURCE_NAME,           /**< resource name of the current function */
   VM_OC_LINE,                    /**< line number of the next statement */
-#endif /* JERRY_ENABLE_LINE_INFO */
+#endif /* ENABLED (JERRY_LINE_INFO) */
   VM_OC_NONE,                    /**< a special opcode for unsupported byte codes */
 } vm_oc_types;
 
@@ -246,14 +251,14 @@ typedef enum
 #if !ENABLED (JERRY_ES2015_OBJECT_INITIALIZER)
   VM_OC_SET_COMPUTED_PROPERTY = VM_OC_NONE,   /**< set computed property is unused */
 #endif /* !ENABLED (JERRY_ES2015_OBJECT_INITIALIZER) */
-#ifndef JERRY_DEBUGGER
+#if !ENABLED (JERRY_DEBUGGER)
   VM_OC_BREAKPOINT_ENABLED = VM_OC_NONE,      /**< enabled breakpoint for debugger is unused */
   VM_OC_BREAKPOINT_DISABLED = VM_OC_NONE,     /**< disabled breakpoint for debugger is unused */
-#endif /* !JERRY_DEBUGGER */
-#ifndef JERRY_ENABLE_LINE_INFO
+#endif /* !ENABLED (JERRY_DEBUGGER) */
+#if !ENABLED (JERRY_LINE_INFO)
   VM_OC_RESOURCE_NAME = VM_OC_NONE,           /**< resource name of the current function is unused */
   VM_OC_LINE = VM_OC_NONE,                    /**< line number of the next statement is unused */
-#endif /* !JERRY_ENABLE_LINE_INFO */
+#endif /* !ENABLED (JERRY_LINE_INFO) */
 #if !ENABLED (JERRY_ES2015_CLASS)
   VM_OC_CLASS_HERITAGE = VM_OC_NONE,          /**< create a super class context */
   VM_OC_CLASS_INHERITANCE = VM_OC_NONE,       /**< inherit properties from the 'super' class */
@@ -269,6 +274,11 @@ typedef enum
   VM_OC_PUSH_CONSTRUCTOR_THIS = VM_OC_NONE,   /**< push 'this' inside a class constructor */
   VM_OC_CONSTRUCTOR_RET = VM_OC_NONE,         /**< explicit return from a class constructor */
 #endif /* !ENABLED (JERRY_ES2015_CLASS) */
+#if !ENABLED (JERRY_ES2015_FOR_OF)
+  VM_OC_FOR_OF_CREATE_CONTEXT = VM_OC_NONE,   /**< for of create context */
+  VM_OC_FOR_OF_GET_NEXT = VM_OC_NONE,         /**< get next */
+  VM_OC_FOR_OF_HAS_NEXT = VM_OC_NONE,         /**< has next */
+#endif /* !ENABLED (JERRY_ES2015_FOR_OF) */
   VM_OC_UNUSED = VM_OC_NONE                   /**< placeholder if the list is empty */
 } vm_oc_unused_types;
 

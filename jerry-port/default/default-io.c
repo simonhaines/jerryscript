@@ -13,6 +13,9 @@
  * limitations under the License.
  */
 
+#if !defined (WIN32)
+#include <libgen.h>
+#endif /* !defined (WIN32) */
 #include <limits.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -85,7 +88,7 @@ jerry_port_log (jerry_log_level_t level, /**< message log level */
   {
     va_list args;
     va_start (args, format);
-#ifdef JERRY_DEBUGGER
+#if defined (JERRY_DEBUGGER) && (JERRY_DEBUGGER == 1)
     int length = vsnprintf (NULL, 0, format, args);
     va_end (args);
     va_start (args, format);
@@ -97,18 +100,18 @@ jerry_port_log (jerry_log_level_t level, /**< message log level */
     jerry_debugger_send_log (level, (jerry_char_t *) buffer, (jerry_size_t) length);
 #else /* If jerry-debugger isn't defined, libc is turned on */
     vfprintf (stderr, format, args);
-#endif /* JERRY_DEBUGGER */
+#endif /* defined (JERRY_DEBUGGER) && (JERRY_DEBUGGER == 1) */
     va_end (args);
   }
 } /* jerry_port_log */
 
-#ifdef JERRY_DEBUGGER
+#if defined (JERRY_DEBUGGER) && (JERRY_DEBUGGER == 1)
 
 #define DEBUG_BUFFER_SIZE (256)
 static char debug_buffer[DEBUG_BUFFER_SIZE];
 static int debug_buffer_index = 0;
 
-#endif /* JERRY_DEBUGGER */
+#endif /* defined (JERRY_DEBUGGER) && (JERRY_DEBUGGER == 1) */
 
 /**
  * Default implementation of jerry_port_print_char. Uses 'putchar' to
@@ -119,7 +122,7 @@ jerry_port_print_char (char c) /**< the character to print */
 {
   putchar (c);
 
-#ifdef JERRY_DEBUGGER
+#if defined (JERRY_DEBUGGER) && (JERRY_DEBUGGER == 1)
   debug_buffer[debug_buffer_index++] = c;
 
   if ((debug_buffer_index == DEBUG_BUFFER_SIZE) || (c == '\n'))
@@ -127,7 +130,7 @@ jerry_port_print_char (char c) /**< the character to print */
     jerry_debugger_send_output ((jerry_char_t *) debug_buffer, (jerry_size_t) debug_buffer_index);
     debug_buffer_index = 0;
   }
-#endif /* JERRY_DEBUGGER */
+#endif /* defined (JERRY_DEBUGGER) && (JERRY_DEBUGGER == 1) */
 } /* jerry_port_print_char */
 
 /**
@@ -203,22 +206,58 @@ jerry_port_release_source (uint8_t *buffer_p) /**< buffer to free */
  * @return length of the path written to the output buffer
  */
 size_t
-jerry_port_normalize_path (const char *in_path_p, /**< input file path */
-                           char *out_buf_p,       /**< output buffer */
-                           size_t out_buf_size)   /**< size of output buffer */
+jerry_port_normalize_path (const char *in_path_p,   /**< input file path */
+                           char *out_buf_p,         /**< output buffer */
+                           size_t out_buf_size,     /**< size of output buffer */
+                           char *base_file_p)       /**< base file path */
 {
   size_t ret = 0;
 
 #if defined (WIN32)
-  char *norm_p = _fullpath (out_buf_p, in_path_p, out_buf_size);
+  char drive[_MAX_DRIVE];
+  char *dir_p = (char *) malloc (_MAX_DIR);
+
+  char *path_p = (char *) malloc (_MAX_PATH * 2);
+  *path_p = '\0';
+
+  if (base_file_p != NULL)
+  {
+    _splitpath_s (base_file_p,
+                  &drive,
+                  _MAX_DRIVE,
+                  dir_p,
+                  _MAX_DIR,
+                  NULL,
+                  0,
+                  NULL,
+                  0);
+    strncat (path_p, &drive, _MAX_DRIVE);
+    strncat (path_p, dir_p, _MAX_DIR);
+  }
+
+  strncat (path_p, in_path_p, _MAX_PATH);
+
+  char *norm_p = _fullpath (out_buf_p, path_p, out_buf_size);
+
+  free (path_p);
+  free (dir_p);
 
   if (norm_p != NULL)
   {
     ret = strnlen (norm_p, out_buf_size);
   }
 #elif defined (__unix__) || defined (__APPLE__)
-  char *temp_p = (char *) malloc (PATH_MAX);
-  char *norm_p = realpath (in_path_p, temp_p);
+#define MAX_JERRY_PATH_SIZE 256
+  char *buffer_p = (char *) malloc (PATH_MAX);
+  char *path_p = (char *) malloc (PATH_MAX);
+
+  char *base_p = dirname (base_file_p);
+  strncpy (path_p, base_p, MAX_JERRY_PATH_SIZE);
+  strncat (path_p, "/", 1);
+  strncat (path_p, in_path_p, MAX_JERRY_PATH_SIZE);
+
+  char *norm_p = realpath (path_p, buffer_p);
+  free (path_p);
 
   if (norm_p != NULL)
   {
@@ -230,9 +269,12 @@ jerry_port_normalize_path (const char *in_path_p, /**< input file path */
     }
   }
 
-  free (temp_p);
+  free (buffer_p);
+#undef MAX_JERRY_PATH_SIZE
 #else
-  /* Do nothing. */
+  (void) base_file_p;
+
+  /* Do nothing, just copy the input. */
   const size_t len = strnlen (in_path_p, out_buf_size);
   if (len < out_buf_size)
   {

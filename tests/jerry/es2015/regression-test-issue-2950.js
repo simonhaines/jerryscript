@@ -12,5 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-var result = RegExp.prototype.compile([]);
-assert(result === undefined);
+var str = new Map();
+var iterator = str[ Symbol.iterator ]();
+
+try {
+  iterator.next.call({ })
+  assert(false);
+} catch (e) {
+  assert(e instanceof TypeError);
+}

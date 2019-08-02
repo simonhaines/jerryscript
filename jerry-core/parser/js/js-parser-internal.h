@@ -82,7 +82,8 @@ typedef enum
 #endif /* ENABLED (JERRY_ES2015_CLASS) */
 #if ENABLED (JERRY_ES2015_MODULE_SYSTEM)
   PARSER_MODULE_DEFAULT_CLASS_OR_FUNC = (1u << 25),  /**< parsing a function or class default export */
-  PARSER_MODULE_STORE_IDENT = (1u << 26),    /**< store identifier of the current export statement */
+  PARSER_MODULE_STORE_IDENT = (1u << 26),     /**< store identifier of the current export statement */
+  PARSER_IS_EVAL = (1u << 27),                /**< eval code */
 #endif /* ENABLED (JERRY_ES2015_MODULE_SYSTEM) */
 } parser_general_flags_t;
 
@@ -285,7 +286,7 @@ typedef struct parser_branch_node_t
   parser_branch_t branch;                     /**< branch */
 } parser_branch_node_t;
 
-#ifdef JERRY_DEBUGGER
+#if ENABLED (JERRY_DEBUGGER)
 /**
  * Extra information for each breakpoint.
  */
@@ -300,7 +301,7 @@ typedef struct
 #define PARSER_MAX_BREAKPOINT_INFO_COUNT \
   (JERRY_DEBUGGER_TRANSPORT_MAX_BUFFER_SIZE / sizeof (parser_breakpoint_info_t))
 
-#endif /* JERRY_DEBUGGER */
+#endif /* ENABLED (JERRY_DEBUGGER) */
 
 /**
  * Those members of a context which needs
@@ -383,20 +384,20 @@ typedef struct
   uint16_t context_stack_depth;               /**< current context stack depth */
 #endif /* !JERRY_NDEBUG */
 
-#ifdef PARSER_DUMP_BYTE_CODE
+#if ENABLED (JERRY_PARSER_DUMP_BYTE_CODE)
   int is_show_opcodes;                        /**< show opcodes */
   uint32_t total_byte_code_size;              /**< total byte code size */
-#endif /* PARSER_DUMP_BYTE_CODE */
+#endif /* ENABLED (JERRY_PARSER_DUMP_BYTE_CODE) */
 
-#ifdef JERRY_DEBUGGER
+#if ENABLED (JERRY_DEBUGGER)
   parser_breakpoint_info_t breakpoint_info[PARSER_MAX_BREAKPOINT_INFO_COUNT]; /**< breakpoint info list */
   uint16_t breakpoint_info_count; /**< current breakpoint index */
   parser_line_counter_t last_breakpoint_line; /**< last line where breakpoint has been inserted */
-#endif /* JERRY_DEBUGGER */
+#endif /* ENABLED (JERRY_DEBUGGER) */
 
-#ifdef JERRY_ENABLE_LINE_INFO
+#if ENABLED (JERRY_LINE_INFO)
   parser_line_counter_t last_line_info_line; /**< last line where line info has been inserted */
-#endif /* JERRY_ENABLE_LINE_INFO */
+#endif /* ENABLED (JERRY_LINE_INFO) */
 } parser_context_t;
 
 /**
@@ -571,7 +572,7 @@ extern const lexer_lit_location_t lexer_default_literal;
 void parser_module_add_export_node_to_context (parser_context_t *context_p);
 void parser_module_add_import_node_to_context (parser_context_t *context_p);
 void parser_module_check_request_place (parser_context_t *context_p);
-void parser_module_context_init (parser_context_t *context_p);
+void parser_module_context_init (void);
 void parser_module_handle_module_specifier (parser_context_t *context_p);
 void parser_module_handle_requests (parser_context_t *context_p);
 void parser_module_parse_export_clause (parser_context_t *context_p);
@@ -605,17 +606,17 @@ void parser_raise_error (parser_context_t *context_p, parser_error_t error);
 
 /* Debug functions. */
 
-#ifdef JERRY_DEBUGGER
+#if ENABLED (JERRY_DEBUGGER)
 
 void parser_append_breakpoint_info (parser_context_t *context_p, jerry_debugger_header_type_t type, uint32_t value);
 
-#endif /* JERRY_DEBUGGER */
+#endif /* ENABLED (JERRY_DEBUGGER) */
 
-#ifdef JERRY_ENABLE_LINE_INFO
+#if ENABLED (JERRY_LINE_INFO)
 
 void parser_emit_line_info (parser_context_t *context_p, uint32_t line, bool flush_cbc);
 
-#endif /* JERRY_ENABLE_LINE_INFO */
+#endif /* ENABLED (JERRY_LINE_INFO) */
 
 /**
  * @}

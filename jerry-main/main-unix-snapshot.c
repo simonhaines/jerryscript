@@ -46,7 +46,7 @@ static const char *output_file_name_p = "js.snapshot";
 static jerry_length_t magic_string_lengths[JERRY_LITERAL_LENGTH];
 static const jerry_char_t *magic_string_items[JERRY_LITERAL_LENGTH];
 
-#ifdef JERRY_ENABLE_EXTERNAL_CONTEXT
+#if defined (JERRY_EXTERNAL_CONTEXT) && (JERRY_EXTERNAL_CONTEXT == 1)
 /**
  * The alloc function passed to jerry_create_context
  */
@@ -58,7 +58,17 @@ context_alloc (size_t size,
   return malloc (size);
 } /* context_alloc */
 
-#endif /* JERRY_ENABLE_EXTERNAL_CONTEXT */
+/**
+ * Create and set the default external context.
+ */
+static void
+context_init (void)
+{
+  jerry_context_t *context_p = jerry_create_context (JERRY_GLOBAL_HEAP_SIZE * 1024, context_alloc, NULL);
+  jerry_port_default_set_current_context (context_p);
+} /* context_init */
+
+#endif /* defined (JERRY_EXTERNAL_CONTEXT) && (JERRY_EXTERNAL_CONTEXT == 1) */
 
 /**
  * Check whether JerryScript has a requested feature enabled or not. If not,
@@ -162,7 +172,7 @@ print_unhandled_exception (jerry_value_t error_value) /**< error value */
     return;
   }
 
-  jerry_size_t err_str_size = jerry_get_string_size (err_str_val);
+  jerry_size_t err_str_size = jerry_get_utf8_string_size (err_str_val);
 
   if (err_str_size >= 256)
   {
@@ -172,7 +182,7 @@ print_unhandled_exception (jerry_value_t error_value) /**< error value */
   }
 
   jerry_char_t err_str_buf[256];
-  jerry_size_t string_end = jerry_string_to_char_buffer (err_str_val, err_str_buf, err_str_size);
+  jerry_size_t string_end = jerry_string_to_utf8_char_buffer (err_str_val, err_str_buf, err_str_size);
   assert (string_end == err_str_size);
   err_str_buf[string_end] = 0;
 
@@ -308,10 +318,9 @@ process_generate (cli_state_t *cli_state_p, /**< cli state */
     return JERRY_STANDALONE_EXIT_CODE_FAIL;
   }
 
-#ifdef JERRY_ENABLE_EXTERNAL_CONTEXT
-  jerry_context_t *context_p = jerry_create_context (CONFIG_MEM_HEAP_AREA_SIZE, context_alloc, NULL);
-  jerry_port_default_set_current_context (context_p);
-#endif /* JERRY_ENABLE_EXTERNAL_CONTEXT */
+#if defined (JERRY_EXTERNAL_CONTEXT) && (JERRY_EXTERNAL_CONTEXT == 1)
+  context_init ();
+#endif /* defined (JERRY_EXTERNAL_CONTEXT) && (JERRY_EXTERNAL_CONTEXT == 1) */
 
   jerry_init (flags);
 
@@ -516,10 +525,9 @@ process_literal_dump (cli_state_t *cli_state_p, /**< cli state */
     return JERRY_STANDALONE_EXIT_CODE_FAIL;
   }
 
-#ifdef JERRY_ENABLE_EXTERNAL_CONTEXT
-  jerry_context_t *context_p = jerry_create_context (CONFIG_MEM_HEAP_AREA_SIZE, context_alloc, NULL);
-  jerry_port_default_set_current_context (context_p);
-#endif /* JERRY_ENABLE_EXTERNAL_CONTEXT */
+#if defined (JERRY_EXTERNAL_CONTEXT) && (JERRY_EXTERNAL_CONTEXT == 1)
+  context_init ();
+#endif /* defined (JERRY_EXTERNAL_CONTEXT) && (JERRY_EXTERNAL_CONTEXT == 1) */
 
   jerry_init (JERRY_INIT_EMPTY);
 
@@ -685,10 +693,9 @@ process_merge (cli_state_t *cli_state_p, /**< cli state */
     return JERRY_STANDALONE_EXIT_CODE_FAIL;
   }
 
-#ifdef JERRY_ENABLE_EXTERNAL_CONTEXT
-  jerry_context_t *context_p = jerry_create_context (CONFIG_MEM_HEAP_AREA_SIZE, context_alloc, NULL);
-  jerry_port_default_set_current_context (context_p);
-#endif /* JERRY_ENABLE_EXTERNAL_CONTEXT */
+#if defined (JERRY_EXTERNAL_CONTEXT) && (JERRY_EXTERNAL_CONTEXT == 1)
+  context_init ();
+#endif /* defined (JERRY_EXTERNAL_CONTEXT) && (JERRY_EXTERNAL_CONTEXT == 1) */
 
   jerry_init (JERRY_INIT_EMPTY);
 

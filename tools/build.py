@@ -90,6 +90,8 @@ def get_arguments():
                          help='build snapshot command line tool (%(choices)s)')
     compgrp.add_argument('--jerry-cmdline-test', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                          help=devhelp('build test version of the jerry command line tool (%(choices)s)'))
+    compgrp.add_argument('--libfuzzer', metavar='X', choices=['ON', 'OFF'], type=str.upper,
+                         help=devhelp('build jerry with libfuzzer support (%(choices)s)'))
     compgrp.add_argument('--jerry-ext', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                          help='build jerry-ext (%(choices)s)')
     compgrp.add_argument('--jerry-libm', metavar='X', choices=['ON', 'OFF'], type=str.upper,
@@ -118,6 +120,8 @@ def get_arguments():
                          help='enable logging (%(choices)s)')
     coregrp.add_argument('--mem-heap', metavar='SIZE', type=int,
                          help='size of memory heap (in kilobytes)')
+    coregrp.add_argument('--stack-limit', metavar='SIZE', type=int,
+                         help='maximum stack usage (in kilobytes)')
     coregrp.add_argument('--mem-stats', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                          help=devhelp('enable memory statistics (%(choices)s)'))
     coregrp.add_argument('--mem-stress-test', metavar='X', choices=['ON', 'OFF'], type=str.upper,
@@ -126,10 +130,6 @@ def get_arguments():
                          help='specify profile file')
     coregrp.add_argument('--regexp-strict-mode', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                          help=devhelp('enable regexp strict mode (%(choices)s)'))
-    coregrp.add_argument('--regexp-recursion-limit', metavar='N', type=int,
-                         help='regexp recursion depth limit')
-    coregrp.add_argument('--vm-recursion-limit', metavar='N', type=int,
-                         help='VM recursion depth limit')
     coregrp.add_argument('--show-opcodes', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                          help=devhelp('enable parser byte-code dumps (%(choices)s)'))
     coregrp.add_argument('--show-regexp-opcodes', metavar='X', choices=['ON', 'OFF'], type=str.upper,
@@ -153,11 +153,6 @@ def get_arguments():
     if arguments.devhelp:
         parser.print_help()
         sys.exit(0)
-
-    if arguments.vm_recursion_limit:
-        if arguments.vm_recursion_limit < 0:
-            print ('Configuration error: VM recursion limit must be greater or equal than 0')
-            sys.exit(1)
 
     return arguments
 
@@ -184,6 +179,7 @@ def generate_build_options(arguments):
     build_options_append('JERRY_CMDLINE', arguments.jerry_cmdline)
     build_options_append('JERRY_CMDLINE_SNAPSHOT', arguments.jerry_cmdline_snapshot)
     build_options_append('JERRY_CMDLINE_TEST', arguments.jerry_cmdline_test)
+    build_options_append('JERRY_LIBFUZZER', arguments.libfuzzer)
     build_options_append('JERRY_EXT', arguments.jerry_ext)
     build_options_append('JERRY_LIBM', arguments.jerry_libm)
     build_options_append('JERRY_PORT_DEFAULT', arguments.jerry_port_default)
@@ -191,27 +187,26 @@ def generate_build_options(arguments):
 
     # jerry-core options
     build_options_append('ENABLE_ALL_IN_ONE', arguments.all_in_one)
-    build_options_append('FEATURE_CPOINTER_32_BIT', arguments.cpointer_32bit)
-    build_options_append('FEATURE_ERROR_MESSAGES', arguments.error_messages)
-    build_options_append('FEATURE_EXTERNAL_CONTEXT', arguments.external_context)
-    build_options_append('FEATURE_DEBUGGER', arguments.jerry_debugger)
-    build_options_append('FEATURE_JS_PARSER', arguments.js_parser)
-    build_options_append('FEATURE_LINE_INFO', arguments.line_info)
-    build_options_append('FEATURE_LOGGING', arguments.logging)
-    build_options_append('MEM_HEAP_SIZE_KB', arguments.mem_heap)
-    build_options_append('FEATURE_MEM_STATS', arguments.mem_stats)
-    build_options_append('FEATURE_MEM_STRESS_TEST', arguments.mem_stress_test)
-    build_options_append('FEATURE_PROFILE', arguments.profile)
-    build_options_append('FEATURE_REGEXP_STRICT_MODE', arguments.regexp_strict_mode)
-    build_options_append('REGEXP_RECURSION_LIMIT', arguments.regexp_recursion_limit)
-    build_options_append('VM_RECURSION_LIMIT', arguments.vm_recursion_limit)
-    build_options_append('FEATURE_PARSER_DUMP', arguments.show_opcodes)
-    build_options_append('FEATURE_REGEXP_DUMP', arguments.show_regexp_opcodes)
-    build_options_append('FEATURE_SNAPSHOT_EXEC', arguments.snapshot_exec)
-    build_options_append('FEATURE_SNAPSHOT_SAVE', arguments.snapshot_save)
-    build_options_append('FEATURE_SYSTEM_ALLOCATOR', arguments.system_allocator)
-    build_options_append('FEATURE_VALGRIND', arguments.valgrind)
-    build_options_append('FEATURE_VM_EXEC_STOP', arguments.vm_exec_stop)
+    build_options_append('JERRY_CPOINTER_32_BIT', arguments.cpointer_32bit)
+    build_options_append('JERRY_ERROR_MESSAGES', arguments.error_messages)
+    build_options_append('JERRY_EXTERNAL_CONTEXT', arguments.external_context)
+    build_options_append('JERRY_DEBUGGER', arguments.jerry_debugger)
+    build_options_append('JERRY_PARSER', arguments.js_parser)
+    build_options_append('JERRY_LINE_INFO', arguments.line_info)
+    build_options_append('JERRY_LOGGING', arguments.logging)
+    build_options_append('JERRY_GLOBAL_HEAP_SIZE', arguments.mem_heap)
+    build_options_append('JERRY_STACK_LIMIT', arguments.stack_limit)
+    build_options_append('JERRY_MEM_STATS', arguments.mem_stats)
+    build_options_append('JERRY_MEM_GC_BEFORE_EACH_ALLOC', arguments.mem_stress_test)
+    build_options_append('JERRY_PROFILE', arguments.profile)
+    build_options_append('JERRY_REGEXP_STRICT_MODE', arguments.regexp_strict_mode)
+    build_options_append('JERRY_PARSER_DUMP_BYTE_CODE', arguments.show_opcodes)
+    build_options_append('JERRY_REGEXP_DUMP_BYTE_CODE', arguments.show_regexp_opcodes)
+    build_options_append('JERRY_SNAPSHOT_EXEC', arguments.snapshot_exec)
+    build_options_append('JERRY_SNAPSHOT_SAVE', arguments.snapshot_save)
+    build_options_append('JERRY_SYSTEM_ALLOCATOR', arguments.system_allocator)
+    build_options_append('JERRY_VALGRIND', arguments.valgrind)
+    build_options_append('JERRY_VM_EXEC_STOP', arguments.vm_exec_stop)
 
     # jerry-main options
     build_options_append('ENABLE_LINK_MAP', arguments.link_map)

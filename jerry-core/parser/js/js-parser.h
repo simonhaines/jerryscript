@@ -98,6 +98,9 @@ typedef enum
   PARSER_ERR_COLON_FOR_CONDITIONAL_EXPECTED,          /**< colon expected for conditional expression */
   PARSER_ERR_SEMICOLON_EXPECTED,                      /**< semicolon expected */
   PARSER_ERR_IN_EXPECTED,                             /**< in keyword expected */
+#if ENABLED (JERRY_ES2015_FOR_OF)
+  PARSER_ERR_OF_EXPECTED,                             /**< of keyword expected */
+#endif /* ENABLED (JERRY_ES2015_FOR_OF) */
   PARSER_ERR_WHILE_EXPECTED,                          /**< while expected for do-while loop */
   PARSER_ERR_CATCH_FINALLY_EXPECTED,                  /**< catch or finally expected */
   PARSER_ERR_ARRAY_ITEM_SEPARATOR_EXPECTED,           /**< array item separator expected */
@@ -166,9 +169,9 @@ ecma_value_t parser_parse_script (const uint8_t *arg_list_p, size_t arg_list_siz
                                   const uint8_t *source_p, size_t source_size,
                                   uint32_t parse_opts, ecma_compiled_code_t **bytecode_data_p);
 
-#ifdef JERRY_ENABLE_ERROR_MESSAGES
+#if ENABLED (JERRY_ERROR_MESSAGES)
 const char *parser_error_to_string (parser_error_t);
-#endif /* JERRY_ENABLE_ERROR_MESSAGES */
+#endif /* ENABLED (JERRY_ERROR_MESSAGES) */
 
 /**
  * @}

@@ -237,7 +237,7 @@ ecma_prop_name_is_symbol (ecma_string_t *string_p) /**< ecma-string */
 } /* ecma_prop_name_is_symbol */
 #endif /* ENABLED (JERRY_ES2015_BUILTIN_SYMBOL) */
 
-#if ENABLED (JERRY_ES2015_BUILTIN_MAP)
+#if ENABLED (JERRY_ES2015_BUILTIN_MAP) || ENABLED (JERRY_ES2015_BUILTIN_SET)
 /**
  * Allocate new ecma-string and fill it with reference to the map key descriptor
  *
@@ -270,7 +270,7 @@ ecma_prop_name_is_map_key (ecma_string_t *string_p) /**< ecma-string */
   return (!ECMA_IS_DIRECT_STRING (string_p)
           && ECMA_STRING_GET_CONTAINER (string_p) == ECMA_STRING_CONTAINER_MAP_KEY);
 } /* ecma_prop_name_is_map_key */
-#endif /* ENABLED (JERRY_ES2015_BUILTIN_MAP) */
+#endif /* ENABLED (JERRY_ES2015_BUILTIN_MAP) || ENABLED (JERRY_ES2015_BUILTIN_SET) */
 
 /**
  * Allocate new ecma-string and fill it with characters from the utf8 string
@@ -475,6 +475,24 @@ ecma_new_ecma_string_from_code_unit (ecma_char_t code_unit) /**< code unit */
 
   return ecma_new_ecma_string_from_utf8 (lit_utf8_bytes, bytes_size);
 } /* ecma_new_ecma_string_from_code_unit */
+
+#if ENABLED (JERRY_ES2015_BUILTIN_ITERATOR)
+/**
+ * Allocate new ecma-string and fill it with cesu-8 character which represents specified code units
+ *
+ * @return pointer to ecma-string descriptor
+ */
+ecma_string_t *
+ecma_new_ecma_string_from_code_units (ecma_char_t first_code_unit, /**< code unit */
+                                      ecma_char_t second_code_unit) /**< code unit */
+{
+  lit_utf8_byte_t lit_utf8_bytes[2 * LIT_UTF8_MAX_BYTES_IN_CODE_UNIT];
+  lit_utf8_size_t bytes_size = lit_code_unit_to_utf8 (first_code_unit, lit_utf8_bytes);
+  bytes_size += lit_code_unit_to_utf8 (second_code_unit, lit_utf8_bytes + bytes_size);
+
+  return ecma_new_ecma_string_from_utf8 (lit_utf8_bytes, bytes_size);
+} /* ecma_new_ecma_string_from_code_units */
+#endif /* ENABLED (JERRY_ES2015_BUILTIN_ITERATOR) */
 
 /**
  * Allocate new ecma-string and fill it with ecma-number
@@ -1020,13 +1038,13 @@ ecma_deref_ecma_string (ecma_string_t *string_p) /**< ecma-string */
       break;
     }
 #endif /* ENABLED (JERRY_ES2015_BUILTIN_SYMBOL) */
-#if ENABLED (JERRY_ES2015_BUILTIN_MAP)
+#if ENABLED (JERRY_ES2015_BUILTIN_MAP) || ENABLED (JERRY_ES2015_BUILTIN_SET)
     case ECMA_STRING_CONTAINER_MAP_KEY:
     {
       ecma_free_value_if_not_object (string_p->u.value);
       break;
     }
-#endif /* ENABLED (JERRY_ES2015_BUILTIN_MAP) */
+#endif /* ENABLED (JERRY_ES2015_BUILTIN_MAP) || ENABLED (JERRY_ES2015_BUILTIN_SET) */
     default:
     {
       JERRY_ASSERT (ECMA_STRING_GET_CONTAINER (string_p) == ECMA_STRING_CONTAINER_UINT32_IN_DESC
